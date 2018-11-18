@@ -24,31 +24,120 @@ namespace MailSender
         public WpfMailSender()
         {
             InitializeComponent();
+
+            cbSenderSelect.ItemsSource = Variables.Senders;
+            cbSenderSelect.DisplayMemberPath = "Key";
+            cbSenderSelect.SelectedValuePath = "Value";
+
+            cbSmtpSelect.ItemsSource = Variables.Servers;
+            cbSmtpSelect.DisplayMemberPath = "Key";
+            cbSmtpSelect.SelectedValuePath = "Value";
+
+            DB db = new DB();
+            dataGrid.ItemsSource = db.Emails;
         }
 
-        private void BtnSendEmail_Click(object sender, RoutedEventArgs e)
+        //private void BtnSendEmail_Click(object sender, RoutedEventArgs e)
+        //{
+        //    // Пример вызова пользовательского окна.
+        //    SendEndWindow sew = new SendEndWindow
+        //    {
+        //        Owner = this
+        //    };
+        //    sew.ShowDialog();
+        //}
+
+        private void MiClose_Click(object sender, RoutedEventArgs e)
         {
-            // Список адресов для рассылки.
-            List<string> listStrMails = Constants.listStrMails;
+            this.Close();
+        }
 
-            string strPassword = passwordBox.Password;
-            string senderEmail = Constants.SENDER_EMAIL;
+        private void BtnClock_Click(object sender, RoutedEventArgs e)
+        {
+            tabControl.SelectedItem = tiPlanner;
+        }
 
-            string subject = tbSubject.Text;
-            string body = tbBody.Text;
+        private void BtnSendAtOnce_Click(object sender, RoutedEventArgs e)
+        {
+            string login = cbSenderSelect.Text;
+            string password = cbSenderSelect.SelectedValue.ToString();
 
-            foreach (string recieverEmail in listStrMails)
+            string server = cbSmtpSelect.Text;
+            int port = (int)cbSmtpSelect.SelectedValue;
+
+            string emailSubject = tbSubject.Text;
+            string emailBody = new TextRange(tbBody.Document.ContentStart, tbBody.Document.ContentEnd).Text;
+
+            if (string.IsNullOrEmpty(login))
             {
-                var mail = new EmailSendService();
-                mail.Send(senderEmail, strPassword, recieverEmail, subject, body);
+                MessageBox.Show("Выберите отправителя");
+                return;
+            }
+            if (string.IsNullOrEmpty(password))
+            {
+                MessageBox.Show("Укажите пароль отправителя");
+                return;
             }
 
-            SendEndWindow sew = new SendEndWindow
+            if (string.IsNullOrWhiteSpace(emailBody))
             {
-                Owner = this
-            };
-            sew.ShowDialog();
+                MessageBox.Show("Письмо не заполнено");
+                tabControl.SelectedItem = tiEmailEditor;
+                return;
+            }
+
+            EmailSendService emailSender = new EmailSendService(login, password, server, port, emailSubject, emailBody);
+            emailSender.SendMails((IQueryable<Email>)dataGrid.ItemsSource);
         }
 
+        private void BtnSend_Click(object sender, RoutedEventArgs e)
+        {
+            string login = cbSenderSelect.Text;
+            string password = cbSenderSelect.SelectedValue.ToString();
+
+            string server = cbSmtpSelect.Text;
+            int port = (int)cbSmtpSelect.SelectedValue;
+
+            string emailSubject = tbSubject.Text;
+            string emailBody = new TextRange(tbBody.Document.ContentStart, tbBody.Document.ContentEnd).Text;
+
+            if (string.IsNullOrEmpty(login))
+            {
+                MessageBox.Show("Выберите отправителя");
+                return;
+            }
+            if (string.IsNullOrEmpty(password))
+            {
+                MessageBox.Show("Укажите пароль отправителя");
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(emailBody))
+            {
+                MessageBox.Show("Письмо не заполнено");
+                tabControl.SelectedItem = tiEmailEditor;
+                return;
+            }
+
+            //TimeSpan tsSendTime = sc.GetSendTime(tbTimePicker.Text);
+            TimeSpan tsSendTime = TimeSpan.Parse(tpTimePicker.Value.ToString());
+            if (tsSendTime == new TimeSpan())
+            {
+                MessageBox.Show("Некорректный формат даты");
+                return;
+            }
+
+            DateTime dtSendDateTime = (cldSchedulDateTimes.SelectedDate ?? DateTime.Today).Add(tsSendTime);
+
+            if (dtSendDateTime < DateTime.Now)
+            {
+                MessageBox.Show("Дата и время отправки писем не могут быть раньше, чем настоящее время");
+                return;
+            }
+
+            SchedulerClass sc = new SchedulerClass();
+            EmailSendService emailSender = new EmailSendService(login, password, server, port, emailSubject, emailBody);
+            sc.SendEmails(dtSendDateTime, emailSender, (IQueryable<Email>)dataGrid.ItemsSource);
+        }
     }
 }

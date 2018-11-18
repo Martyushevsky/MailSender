@@ -10,43 +10,61 @@ namespace MailSender
 {
     public class EmailSendService
     {
-        public EmailSendService() { }
+        #region vars
+        private string _login;      // email, c которого будет рассылаться почта
+        private string _password;   // пароль к email, с которого будет рассылаться почта
+        private string _smtpHost;   // smtp - server
+        private int _smtpPort;      // порт для smtp-server
+        private string _subject;    // тема письма для отправки
+        private string _body;       // текст письма для отправки
+        #endregion
 
-        private string host = Constants.smtpDataYandex.host;
-        private int port = Constants.smtpDataYandex.port;
-
-        public void Send(string login, string password, string reciever, string subject, string body)
+        public EmailSendService(string login, string password, string server, int port, string subject, string body)
         {
-            string senderEmail = login;
-            string accountPassword = password;
-            string recieverEmail = reciever;
+            _login = login;
+            _password = password;
+            _smtpHost = server;
+            _smtpPort = port;
+            _subject = subject;
+            _body = body;
+        }
 
-            // Используем using, чтобы гарантированно удалить объект MailMessage после использования.
-            using (MailMessage mm = new MailMessage(senderEmail, recieverEmail))
+        // Отправка email конкретному адресату
+        private void SendMail(string sendTo, string name)
+        {
+            using (MailMessage mm = new MailMessage(_login, sendTo))
             {
-                // Формируем письмо
-                mm.Subject = subject;   // Заголовок письма.
-                mm.Body = body;         // Тело письма.
-                mm.IsBodyHtml = false;  // Не используем html в теле письма.
+                mm.Subject = _subject;
+                mm.Body = _body;
+                mm.IsBodyHtml = false;
 
-                // Авторизуемся на smtp-сервере и отправляем письмо.
-                // Оператор using гарантирует вызов метода Dispose, даже если при вызове методов в объекте происходит исключение.
-                using (SmtpClient sc = new SmtpClient(host, port))
+                SmtpClient sc = new SmtpClient(_smtpHost, _smtpPort)
                 {
-                    sc.EnableSsl = true;
-                    sc.Credentials = new NetworkCredential(senderEmail, accountPassword);
+                    EnableSsl = true,
+                    DeliveryMethod = SmtpDeliveryMethod.Network,
+                    UseDefaultCredentials = false,
+                    Credentials = new NetworkCredential(_login, _password)
+                };
 
-                    try
-                    {
-                        sc.Send(mm);
-                    }
-                    catch (SmtpException error)
-                    {
-                        SmtpError se = new SmtpError();
-                        se.lSmtpError.Content = error.Message;
-                        se.ShowDialog();
-                    }
+                try
+                {
+                    sc.Send(mm);
                 }
+                catch (SmtpException error)
+                {
+                    SmtpError se = new SmtpError();
+                    se.lSmtpError.Content = error.Message;
+                    se.ShowDialog();
+                }
+            }
+        }
+
+        // Отправка email всем адресатам
+        public void SendMails(IQueryable<Email> emails)
+        {
+            foreach (Email email in emails)
+            {
+                SendMail(email.Value, email.Name);
             }
         }
     }
